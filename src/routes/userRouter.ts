@@ -1,13 +1,18 @@
-import { Router } from "express";
+import express,{ Router } from "express";
 import z from 'zod';
 import jwt from 'jsonwebtoken';
+import { User } from "../db/models/user-model.js";
+import bcrypt from "bcryptjs";
 export const userRouter = Router();
+
+const app = express();
+app.use(express.json());
 
 enum StatusCodes {
     Success = 200,
-    NotFound = 404,
+    BadRequest = 400,
     Server_Error = 500,
-    IncorrectCreds = 413
+    Conflict = 409
 }
 
 const requiredBody = z.object({
@@ -24,11 +29,36 @@ userRouter.post("/signup" , async (req,res) => {
     const parsedDataWithSuccess = requiredBody.safeParse(req.body);
 
     if(!parsedDataWithSuccess.success) {
-        return res.status(StatusCodes.IncorrectCreds).json({
+        return res.status(StatusCodes.BadRequest).json({
             msg: "Incorrect Format",
             error: parsedDataWithSuccess.error
         })
     }
+
+    const {email,password, firstName,lastName} = req.body;
+
+    const existingUser = await User.findOne({
+        email
+    });
+
+    if(existingUser) {
+        return res.status(StatusCodes.Conflict).json({
+            msg: "User Already Exists"
+        })
+    }
+
+    const hashedPassword = await bcrypt.hash(password,10);
+
+     await User.create({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName
+    })
+
+    res.status(StatusCodes.Success).json({
+        msg: "Signed up Successfully"
+    })
 })
 
 userRouter.post("/signin" , async (req,res) => {
