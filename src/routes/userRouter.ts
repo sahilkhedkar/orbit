@@ -6,7 +6,8 @@ export const userRouter = Router();
 enum StatusCodes {
     Success = 200,
     NotFound = 404,
-    Server_Error = 500
+    Server_Error = 500,
+    IncorrectCreds = 413
 }
 
 const requiredBody = z.object({
@@ -20,7 +21,14 @@ type requiredBody = z.infer<typeof requiredBody>
 
 
 userRouter.post("/signup" , async (req,res) => {
+    const parsedDataWithSuccess = requiredBody.safeParse(req.body);
 
+    if(!parsedDataWithSuccess.success) {
+        return res.status(StatusCodes.IncorrectCreds).json({
+            msg: "Incorrect Format",
+            error: parsedDataWithSuccess.error
+        })
+    }
 })
 
 userRouter.post("/signin" , async (req,res) => {
