@@ -3,20 +3,20 @@ import z from 'zod';
 import jwt from 'jsonwebtoken';
 import { User } from "../db/models/user-model.js";
 import bcrypt from "bcryptjs";
+import { userMiddleware } from "../middleware/userMiddleware.js";
+import { Content } from "../db/models/content-model.js";
 export const userRouter = Router();
-
-const app = express();
-app.use(express.json());
 
 enum StatusCodes {
     Success = 200,
     BadRequest = 400,
     Server_Error = 500,
-    Conflict = 409
+    Conflict = 409,
+    UserNotFound = 404
 }
 
 const requiredBody = z.object({
-    email: z.string().email().min(3).max(30),
+    email: z.email().min(3).max(30),
     password: z.string().min(3).max(20),
     firstName: z.string().min(3).max(15),
     lastName: z.string().min(3).max(15)
@@ -62,19 +62,77 @@ userRouter.post("/signup" , async (req,res) => {
 })
 
 userRouter.post("/signin" , async (req,res) => {
-    
+
+    const {email, password} = req.body
+
+    const response = await User.findOne({email});
+
+    if(!response) {
+        return res.status(StatusCodes.UserNotFound).json({
+            msg: "User Not Found"
+        })
+    }
+
+    const passwordMatch = await bcrypt.compare(password, response.password)
+
+    if(passwordMatch) {
+        const token = jwt.sign({
+            userId: response._id.toString()
+        }, process.env.JWT_SECRET! ,
+        {expiresIn: '1h'})
+
+        return res.json({
+            token
+        })
+    } else {
+        return res.status(StatusCodes.BadRequest).json({
+            msg: "Invalid Password"
+        })
+    }
 })
 
-userRouter.post("/content" , async (req,res) => {
-    
+userRouter.post("/content" ,userMiddleware, async (req,res) => {
+   const {title, link ,type} = req.body
+
+   await Content.create({
+        link,
+        title,
+        type,
+        // @ts-ignore
+        userId: req.userId,
+        tags: []
+    })
+
+    res.status(StatusCodes.Success).json({
+        msg: "Content Added"
+    })
 })
 
-userRouter.get("/content" , async (req,res) => {
-    
+userRouter.get("/content" ,userMiddleware, async (req,res) => {
+    // @ts-ignore
+    const userId = req.userId;
+    const content = await Content.find({
+        userId
+    }).populate("userId" , "email")
+    if(content) {
+        res.json({
+            content
+        })
+    }
 })
 
-userRouter.delete("/content" , async (req,res) => {
-    
+userRouter.delete("/content" ,userMiddleware, async (req,res) => {
+    const {contentId} = req.body
+
+    await Content.deleteMany({
+        contentId,
+        //@ts-ignore
+        userId: req.userId
+    })
+
+    res.json({
+        msg: "Content Deleted"
+    })
 })
 
 userRouter.post("/orbit/share" , async (req,res) => {

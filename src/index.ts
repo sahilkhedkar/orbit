@@ -1,17 +1,25 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import { userRouter } from './routes/userRouter.js';
-
+import express from "express";
+import dotenv from "dotenv";
 dotenv.config({
-    path: ".env"
-})
+  path: "../.env",
+});
+import { userRouter } from "./routes/userRouter.js";
+import { connectDB } from "./db/db.js";
 
 const app = express();
 
-const PORT = process.env.PORT || 3000
+app.use(express.json());
 
-app.use("/api/v1/user" , userRouter);
+const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-    console.log(`App is listening on port ${PORT}`);  
-})
+app.use("/api/v1/user", userRouter);
+
+const startServer = async () => {
+  await connectDB();
+
+  app.listen(PORT, () => {
+    console.log(`App is listening on port ${PORT}`);
+  });
+};
+
+startServer();

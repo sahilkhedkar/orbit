@@ -6,29 +6,29 @@ const userSchema = new Schema({
         unique: true,
         required: true,
         trim: true,
-        min: 3,
-        max: 30
+        minlength: 3,
+        maxlength: 30
     },
     firstName: {
         type: String,
         required: true,
         trim: true,
-        min: 3,
-        max: 30
+        minlength: 3,
+        maxlength: 30
     },
     password: {
         type: String,
         required: true,
         trim: true,
-        min: 3,
-        max: 30
+        minlength: 3,
+        maxlength: 100
     },
     lastName: {
         type: String,
         required: true,
         trim: true,
-        min: 3,
-        max: 30
+        minlength: 3,
+        maxlength: 30
     }
 });
 
