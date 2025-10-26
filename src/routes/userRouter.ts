@@ -1,6 +1,6 @@
-import express,{ Router } from "express";
-import z from 'zod';
-import jwt from 'jsonwebtoken';
+import express, { Router } from "express";
+import z from "zod";
+import jwt from "jsonwebtoken";
 import { User } from "../db/models/user-model.js";
 import bcrypt from "bcryptjs";
 import { userMiddleware } from "../middleware/userMiddleware.js";
@@ -8,137 +8,143 @@ import { Content } from "../db/models/content-model.js";
 export const userRouter = Router();
 
 enum StatusCodes {
-    Success = 200,
-    BadRequest = 400,
-    Server_Error = 500,
-    Conflict = 409,
-    UserNotFound = 404
+  Success = 200,
+  BadRequest = 400,
+  Server_Error = 500,
+  Conflict = 409,
+  UserNotFound = 404,
 }
 
 const requiredBody = z.object({
-    email: z.email().min(3).max(30),
-    password: z.string().min(3).max(20),
-    firstName: z.string().min(3).max(15),
-    lastName: z.string().min(3).max(15)
-})
+  email: z.email().min(3).max(30),
+  password: z.string().min(3).max(20),
+  firstName: z.string().min(3).max(15),
+  lastName: z.string().min(3).max(15),
+});
 
-type requiredBody = z.infer<typeof requiredBody>
+type requiredBody = z.infer<typeof requiredBody>;
 
+userRouter.post("/signup", async (req, res) => {
+  const parsedDataWithSuccess = requiredBody.safeParse(req.body);
 
-userRouter.post("/signup" , async (req,res) => {
-    const parsedDataWithSuccess = requiredBody.safeParse(req.body);
-
-    if(!parsedDataWithSuccess.success) {
-        return res.status(StatusCodes.BadRequest).json({
-            msg: "Incorrect Format",
-            error: parsedDataWithSuccess.error
-        })
-    }
-
-    const {email,password, firstName,lastName} = req.body;
-
-    const existingUser = await User.findOne({
-        email
+  if (!parsedDataWithSuccess.success) {
+    return res.status(StatusCodes.BadRequest).json({
+      msg: "Incorrect Format",
+      error: parsedDataWithSuccess.error,
     });
+  }
 
-    if(existingUser) {
-        return res.status(StatusCodes.Conflict).json({
-            msg: "User Already Exists"
-        })
-    }
+  const { email, password, firstName, lastName } = req.body;
 
-    const hashedPassword = await bcrypt.hash(password,10);
+  const existingUser = await User.findOne({
+    email,
+  });
 
-     await User.create({
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName
-    })
+  if (existingUser) {
+    return res.status(StatusCodes.Conflict).json({
+      msg: "User Already Exists",
+    });
+  }
 
-    res.status(StatusCodes.Success).json({
-        msg: "Signed up Successfully"
-    })
-})
+  const hashedPassword = await bcrypt.hash(password, 10);
 
-userRouter.post("/signin" , async (req,res) => {
+  await User.create({
+    email,
+    password: hashedPassword,
+    firstName,
+    lastName,
+  });
 
-    const {email, password} = req.body
+  res.status(StatusCodes.Success).json({
+    msg: "Signed up Successfully",
+  });
+});
 
-    const response = await User.findOne({email});
+userRouter.post("/signin", async (req, res) => {
+  const { email, password } = req.body;
 
-    if(!response) {
-        return res.status(StatusCodes.UserNotFound).json({
-            msg: "User Not Found"
-        })
-    }
+  const response = await User.findOne({ email });
 
-    const passwordMatch = await bcrypt.compare(password, response.password)
+  if (!response) {
+    return res.status(StatusCodes.UserNotFound).json({
+      msg: "User Not Found",
+    });
+  }
 
-    if(passwordMatch) {
-        const token = jwt.sign({
-            userId: response._id.toString()
-        }, process.env.JWT_SECRET! ,
-        {expiresIn: '1h'})
+  const passwordMatch = await bcrypt.compare(password, response.password);
 
-        return res.json({
-            token
-        })
-    } else {
-        return res.status(StatusCodes.BadRequest).json({
-            msg: "Invalid Password"
-        })
-    }
-})
+  if (passwordMatch) {
+    const token = jwt.sign(
+      {
+        userId: response._id.toString(),
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: "1h" }
+    );
 
-userRouter.post("/content" ,userMiddleware, async (req,res) => {
-   const {title, link ,type} = req.body
+    return res.json({
+      token,
+    });
+  } else {
+    return res.status(StatusCodes.BadRequest).json({
+      msg: "Invalid Password",
+    });
+  }
+});
 
-   await Content.create({
-        link,
-        title,
-        type,
-        // @ts-ignore
-        userId: req.userId,
-        tags: []
-    })
+userRouter.post("/content", userMiddleware, async (req, res) => {
+  const { title, link, type } = req.body;
 
-    res.status(StatusCodes.Success).json({
-        msg: "Content Added"
-    })
-})
-
-userRouter.get("/content" ,userMiddleware, async (req,res) => {
+  await Content.create({
+    link,
+    title,
+    type,
     // @ts-ignore
-    const userId = req.userId;
-    const content = await Content.find({
-        userId
-    }).populate("userId" , "email")
-    if(content) {
-        res.json({
-            content
-        })
-    }
-})
+    userId: req.userId,
+    tags: [],
+  });
 
-userRouter.delete("/content" ,userMiddleware, async (req,res) => {
-    const {contentId} = req.body
+  res.status(StatusCodes.Success).json({
+    msg: "Content Added",
+  });
+});
 
-    await Content.deleteMany({
-        contentId,
-        //@ts-ignore
-        userId: req.userId
-    })
-
+userRouter.get("/content", userMiddleware, async (req, res) => {
+  // @ts-ignore
+  const userId = req.userId;
+  const content = await Content.find({
+    userId,
+  }).populate("userId", "email");
+  if (content) {
     res.json({
-        msg: "Content Deleted"
+      content,
+    });
+  } else {
+    res.status(StatusCodes.UserNotFound).json({
+      msg: "User not found"
     })
-})
+  }
+});
 
-userRouter.post("/orbit/share" , async (req,res) => {
-    
-})
+userRouter.delete("/content", userMiddleware, async (req, res) => {
+  const { contentId } = req.body;
 
-userRouter.post("/orbit/:shareLink" , async (req,res) => {
-    
-})
+  const contentDelete = await Content.deleteMany({
+    contentId,
+    //@ts-ignore
+    userId: req.userId,
+  });
+  if (contentDelete) {
+    return res.status(StatusCodes.Success).json({
+      msg: "Content Deleted",
+    });
+  } else {
+    return res.status(StatusCodes.BadRequest).json({
+      msg: "trying to deleted a doc you don't own",
+    });
+  }
+});
+
+userRouter.post("/orbit/share", async (req, res) => {});
+
+userRouter.post("/orbit/:shareLink", async (req, res) => {});
